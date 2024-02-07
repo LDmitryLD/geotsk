@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Include Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" crossorigin=""/>
+
+    <!-- Map styles -->
+    <style>
+        #mapid { height: 100vh; }
+        .blink {
+            -webkit-animation: blink 1s step-end infinite;
+            animation: blink 1s step-end infinite;
+        }
+        div.score {
+            color: #7700ff !important;
+        }
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="mapid"></div>
+
+<!-- Include Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
+<script type="text/javascript" src="/js/MovingMarker.js"></script>
+<script type="text/javascript" src="/js/polygon.js"></script>
+<script>
+    const moveDirection = {
+        UP: 0,
+        DOWN: 1,
+        LEFT: 2,
+        RIGHT: 3
+    };
+    // Create a new WebSocket connection
+    var host = window.location.host;
+    var wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    var socket = new WebSocket(wsProtocol + "//" + host + "/api/ws");
+
+    // Handle the "open" event
+    socket.addEventListener("open", function(event) {
+        console.log("WebSocket opened:", event);
+        // Send a message to the server
+        message = {
+            name: "echo",
+            data: {
+                someData: 123,
+                moreData: "abc"
+            }
+        };
+        socket.send(JSON.stringify(message));
+    });
+
+    // Handle the "message" event
+    socket.addEventListener("message", function(event) {
+            console.log("WebSocket opened:", event);
+    });
+
+    function socketSend(name, data) {
+        socket.send(JSON.stringify({
+            name: name,
+            data: data
+        }));
+    }
+
+    // Handle the "close" event
+    socket.addEventListener("close", function(event) {
+        console.log("WebSocket closed:", event);
+    });
+
+
+    let startPos = [59.9311, 30.3609];
+    // Create a custom icon for the courier
+    var courierIcon = L.icon({
+        iconUrl: '7541900.png',
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+        popupAnchor: [0, -10],
+        rotationOrigin: "center center"
+    });
+
+    // Create a custom icon for the burger
+    var burgerIcon = L.icon({
+        iconUrl: 'burger.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -10]
+    });
+
+
+    // Create a map
+    var mymap = L.map('mapid').setView(startPos, 11);
+
+    var ordersBounds = L.polygon(mainPolygon, {
+        color: 'blue', // цвет границы
+        weight: 1, // толщина границы
+        fillOpacity: 0.2, // прозрачность заполнения
+        fillColor: 'green' // цвет заполнения
+    }).addTo(mymap);
+
+    var noOrders1 = L.polygon(noOrdersPolygon1, {
+        color: 'red', // цвет границы
+        weight: 1, // толщина границы
+        fillOpacity: 1, // прозрачность заполнения
+        fillColor: 'red' // цвет заполнения
+    }).addTo(mymap);
+
+    var noOrders2 = L.polygon(noOrdersPolygon2, {
+        color: 'red', // цвет границы
+        weight: 1, // толщина границы
+        fillOpacity: 1, // прозрачность заполнения
+        fillColor: 'red' // цвет заполнения
+    }).addTo(mymap);
+
+    // Initialize the score to 0 and add a score display to the map
+    var score = 0;
+    var scoreDisplay = L.control();
+    scoreDisplay.onAdd = function(map) {
+        var div = L.DomUtil.create('div', 'score');
+        div.style.fontSize = "24px";
+        div.innerHTML = "Score: " + score;
+        return div;
+    }
+
+    scoreDisplay.addTo(mymap);
+
+    // Add a tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; OpenStreetMap contributors',
+        maxZoom: 18
+    }).addTo(mymap);
+
+    // Add a marker for the courier that can be dragged on the map
+    // var courierMarker = L.marker(startPos, { icon: courierIcon, draggable: true }).addTo(mymap);
+    var courierMarker = new L.Marker.movingMarker([startPos, startPos], [500], { icon: courierIcon, autostart: true, loop: true }).addTo(mymap);
+
+    courierMarker.start();
+    // Update the courier's location on the map
+    function updateCourierLocation(marker) {
+        var latitude = marker.getLatLng().lat;
+        var longitude = marker.getLatLng().lng;
+        console.log(latitude, longitude);
+    }
+
+    // Call the updateCourierLocation function when the courier marker is dragged
+    courierMarker.on('dragend', function(event) {
+        updateCourierLocation(event.target);
+    });
+
+    document.addEventListener('keydown', function(event) {
+        var precision = 0.001 / Math.pow(2, mymap.getZoom() - 14);
+        switch (event.keyCode) {
+            case 65: // A key
+                socketSend("move", {direction: moveDirection.LEFT, zoom: mymap.getZoom()});
+                break;
+            case 83: // S key
+                socketSend("move", {direction: moveDirection.DOWN, zoom: mymap.getZoom()});
+                break;
+            case 68: // D key
+                socketSend("move", {direction: moveDirection.RIGHT, zoom: mymap.getZoom()});
+                break;
+            case 87: // W key
+                socketSend("move", {direction: moveDirection.UP, zoom: mymap.getZoom()});
+                break;
+        }
+    });
+
+    var markers = [];
+
+    // Функция для удаления маркеров для удаленных заказов
+    function removeMarkers(orders) {
+        // Проходимся по всем маркерам и удаляем только те, которые не соответствуют заказам на сервере
+        markers.forEach(function(marker) {
+            var orderExists = orders.some(function(order) {
+                return order.id === marker.order.id;
+            });
+            if (!orderExists) {
+                mymap.removeLayer(marker);
+                markers.splice(markers.indexOf(marker), 1);
+            }
+        });
+    }
+
+    // Функция для добавления маркеров для новых заказов
+    function addMarkers(orders) {
+        // Проходимся по всем заказам и добавляем маркеры только для тех, которых еще нет в массиве маркеров
+        orders.forEach(function(order) {
+            var markerExists = markers.some(function(marker) {
+                return order.id === marker.order.id;
+            });
+            if (!markerExists) {
+                var marker = L.marker([order.lat, order.lng], { icon: burgerIcon }).addTo(mymap);
+                marker.on('click', function() {
+                    const now = new Date();
+                    const expireDate = new Date(order.created_at);
+                    expireDate.setMinutes(expireDate.getMinutes() + 2);
+
+                    const remainingTimeInSeconds = Math.round((expireDate - now) / 1000);
+
+                    marker.bindPopup(`Осталось времени: ${remainingTimeInSeconds} секунд <br/>
+                    Цена: ${order.price} рублей <br/>
+                    Доставка: ${order.delivery_price} рублей<br/>
+                    Lat: ${order.lat} <br/>
+                    Lng: ${order.lng} <br/>
+                    `);
+                });
+                setInterval(function() {
+                    const now = new Date();
+                    const expireDate = new Date(order.created_at);
+                    expireDate.setMinutes(expireDate.getMinutes() + 2);
+
+                    const remainingTimeInSeconds = Math.round((expireDate - now) / 1000);
+
+                    marker.bindPopup(`Осталось времени: ${remainingTimeInSeconds} секунд <br/>
+                    Цена: ${order.price} рублей <br/>
+                    Доставка: ${order.delivery_price} рублей<br/>
+                    Lat: ${order.lat} <br/>
+                    Lng: ${order.lng} <br/>
+                    `);
+
+                    if (remainingTimeInSeconds < 15) {
+                        marker._icon.classList.add('blink');
+                    }
+                }, 1000);
+                marker.order = order;
+                markers.push(marker);
+            }
+        });
+    }
+
+    // Обновляем маркеры при получении новых данных от сервера
+    function updateMarkers(orders) {
+        removeMarkers(orders);
+        addMarkers(orders);
+    }
+
+    function longPoll() {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                // Обработка полученных данных
+                // get game status
+                var gameStatus = JSON.parse(this.responseText);
+
+                //
+
+                if (score !== gameStatus.courier.score) {
+                    score = gameStatus.courier.score;
+
+                    document.querySelector('.score').innerHTML = "Score: " + score;
+                }
+                //
+                
+                updateMarkers(gameStatus.orders);
+                courierMarker.moveTo([gameStatus.courier.location.lat, gameStatus.courier.location.lng], 500);
+                courierMarker.bindPopup(`
+                    Lat: ${gameStatus.courier.location.lat} <br/>
+                    Lng: ${gameStatus.courier.location.lng} <br/>
+                    `);
+                // Снова отправляем запрос
+                longPoll();
+            }
+        };
+        xhr.open("GET", "/api/status", true);
+        xhr.send();
+    }
+
+    longPoll();
+
+</script>
+</body>
+</html>

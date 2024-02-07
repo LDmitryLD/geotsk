@@ -1,0 +1,29 @@
+version: '3.7'
+services:
+  api:
+    build: .
+    container_name: api
+    ports:
+      - 3080:${SERVER_PORT}
+    restart: always
+    # networks:
+    #   - mylocal
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - VIRTUAL_HOST=localhost
+      - LETSENCRYPT_HOST=localhost
+      - VIRTUAL_PORT=${SERVER_PORT}
+  redis:
+    image: redis
+    container_name: redis
+    # networks:
+    #   - mylocal
+    ports:
+      - "127.0.0.1:6379:6379"
+
+# networks:
+#   mylocal:
+#     driver: bridge      

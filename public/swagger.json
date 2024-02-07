@@ -1,0 +1,124 @@
+{
+  "consumes": [
+    "application/json",
+    "multipart/form-data"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "description": "Documentation of auto trade API.\n\nSchemes:\nhttp\nhttps",
+    "title": "Geotask.",
+    "version": "1.0.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "Получение статуса сервиса.",
+        "operationId": "StatusRequest",
+        "responses": {
+          "200": {
+            "$ref": "#/responses/StatusResponse"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Courier": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "$ref": "#/definitions/Point"
+        },
+        "score": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Score"
+        }
+      },
+      "x-go-package": "projects/LDmitryLD/geotask/module/courier/models"
+    },
+    "CourierStatus": {
+      "type": "object",
+      "properties": {
+        "Courier": {
+          "$ref": "#/definitions/Courier"
+        },
+        "Orders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Order"
+          }
+        }
+      },
+      "x-go-package": "projects/LDmitryLD/geotask/module/courierfacade/models"
+    },
+    "Order": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "CreatedAt"
+        },
+        "delivery_price": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "DeliveryPrice"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "ID"
+        },
+        "is_delivere": {
+          "type": "boolean",
+          "x-go-name": "IsDelivere"
+        },
+        "lat": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Lat"
+        },
+        "lng": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Lng"
+        },
+        "price": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Price"
+        }
+      },
+      "x-go-package": "projects/LDmitryLD/geotask/module/order/models"
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "lat": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Lat"
+        },
+        "lng": {
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Lng"
+        }
+      },
+      "x-go-package": "projects/LDmitryLD/geotask/module/courier/models"
+    }
+  },
+  "responses": {
+    "StatusResponse": {
+      "description": "",
+      "schema": {
+        "$ref": "#/definitions/CourierStatus"
+      }
+    }
+  }
+}
